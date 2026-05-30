@@ -53,6 +53,7 @@ const AyamApp = (() => {
           try {
             await AyamSheets.initLedger();
             await AyamDashboard.load();
+            this.populateVendorSuggestions();
             isInitialized = true;
           } catch (e) {
             console.error('Init error:', e);
@@ -62,6 +63,20 @@ const AyamApp = (() => {
           this._showLogin();
         }
       });
+
+      // Category change auto-updates classification
+      const categorySelect = $('expense-category');
+      const typeSelect = $('expense-type');
+      if (categorySelect && typeSelect) {
+        categorySelect.addEventListener('change', () => {
+          const directCategories = ['Raw Chicken', 'Cooking Oil/Gas', 'Flour/Spices', 'Packaging'];
+          if (directCategories.includes(categorySelect.value)) {
+            typeSelect.value = 'Direct (COGS)';
+          } else {
+            typeSelect.value = 'Indirect (OPEX)';
+          }
+        });
+      }
     },
 
     // ─────────────────────────────────────────────
@@ -213,6 +228,9 @@ const AyamApp = (() => {
       const date = ($('expense-date') || {}).value;
       const category = ($('expense-category') || {}).value;
       const amount = ($('expense-amount') || {}).value;
+      const type = ($('expense-type') || {}).value || 'Direct (COGS)';
+      const vendor = (($('expense-vendor') || {}).value || '').trim() || 'General';
+      const status = ($('expense-status') || {}).value || 'Paid';
       const notes = ($('expense-notes') || {}).value || '';
 
       // Validation
@@ -247,16 +265,25 @@ const AyamApp = (() => {
           date: date,
           category: category,
           amount: amountVal,
+          type: type,
+          vendor: vendor,
+          status: status,
           notes: notes
         });
 
         this.showToast('Expense logged! 📝', 'success');
 
-        // Reset form (keep date and category)
+        // Reset form (keep date and category defaults)
         const expenseAmt = $('expense-amount');
         const expenseNotes = $('expense-notes');
+        const expenseVendor = $('expense-vendor');
         if (expenseAmt) expenseAmt.value = '';
         if (expenseNotes) expenseNotes.value = '';
+        if (expenseVendor) expenseVendor.value = '';
+
+        // Reload data
+        await AyamDashboard.load();
+        this.populateVendorSuggestions();
 
         // Visual success feedback
         btn.classList.add('animate-pulse-success');
@@ -354,6 +381,34 @@ const AyamApp = (() => {
           if (toast.parentNode) toast.remove();
         }, 300);
       }, 3000);
+    },
+
+    /**
+     * Fetch previous expense entries and populate the vendor suggestions datalist
+     */
+    async populateVendorSuggestions() {
+      try {
+        const expenses = await AyamSheets.getExpensesData();
+        const vendors = new Set();
+        expenses.forEach(row => {
+          // If row has vendor field (index 4 in new schema)
+          if (row.length >= 5 && row[4] && row[4] !== 'General') {
+            vendors.add(row[4].trim());
+          }
+        });
+        
+        const datalist = $('vendor-suggestions');
+        if (datalist) {
+          datalist.innerHTML = '';
+          Array.from(vendors).sort().forEach(vendor => {
+            const option = document.createElement('option');
+            option.value = vendor;
+            datalist.appendChild(option);
+          });
+        }
+      } catch (e) {
+        console.warn('Could not populate vendor suggestions:', e);
+      }
     }
   };
 })();

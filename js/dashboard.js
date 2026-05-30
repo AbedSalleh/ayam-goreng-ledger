@@ -146,7 +146,9 @@ const AyamDashboard = (() => {
         const monthlyExpenses = filterByMonth(expenseRows || [], 0);
 
         // Calculate metrics
-        let totalCash = 0, totalQR = 0, totalRevenue = 0, totalExpenses = 0;
+        let totalCash = 0, totalQR = 0, totalRevenue = 0;
+        let totalExpenses = 0, totalCOGS = 0, totalOPEX = 0;
+        let totalPayable = 0;
 
         monthlySales.forEach(row => {
           const cash = parseFloat(row[1]) || 0;
@@ -157,9 +159,31 @@ const AyamDashboard = (() => {
         });
 
         monthlyExpenses.forEach(row => {
-          totalExpenses += parseFloat(row[2]) || 0;
+          const amt = parseFloat(row[2]) || 0;
+          totalExpenses += amt;
+
+          // Detect Direct (COGS) vs Indirect (OPEX)
+          let type = row[3];
+          if (row.length <= 5 || !type) {
+            const directCategories = ['Raw Chicken', 'Cooking Oil/Gas', 'Flour/Spices', 'Packaging'];
+            type = directCategories.includes(row[1]) ? 'Direct (COGS)' : 'Indirect (OPEX)';
+          }
+
+          if (type === 'Direct (COGS)') {
+            totalCOGS += amt;
+          } else {
+            totalOPEX += amt;
+          }
+
+          // Detect Accounts Payable (Unpaid status)
+          const status = row.length > 5 ? row[5] : 'Paid';
+          if (status === 'Unpaid') {
+            totalPayable += amt;
+          }
         });
 
+        const grossProfit = totalRevenue - totalCOGS;
+        const grossMarginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
         const netProfit = totalRevenue - totalExpenses;
         const progressPct = targetProfit > 0
           ? Math.min(Math.max((netProfit / targetProfit) * 100, 0), 100)
@@ -171,7 +195,19 @@ const AyamDashboard = (() => {
         } else {
           this._hideEmptyState();
           // Render metrics
-          this._renderMetrics(totalRevenue, totalCash, totalQR, totalExpenses, netProfit, progressPct);
+          this._renderMetrics({
+            revenue: totalRevenue,
+            cash: totalCash,
+            qr: totalQR,
+            expenses: totalExpenses,
+            cogs: totalCOGS,
+            opex: totalOPEX,
+            grossProfit: grossProfit,
+            grossMargin: grossMarginPct,
+            payable: totalPayable,
+            profit: netProfit,
+            progressPct: progressPct
+          });
           // Render category breakdown
           this._renderCategories(monthlyExpenses, totalExpenses);
           // Render recent transactions
@@ -195,8 +231,16 @@ const AyamDashboard = (() => {
 
       // Clear data areas
       [$('dash-revenue'), $('dash-revenue-cash'), $('dash-revenue-qr'),
-       $('dash-expenses'), $('dash-profit')].forEach(el => {
-        if (el) el.textContent = formatRM(0);
+       $('dash-expenses'), $('dash-expenses-cogs'), $('dash-expenses-opex'),
+       $('dash-gross-profit'), $('dash-gross-margin'), $('dash-payable'), 
+       $('dash-profit')].forEach(el => {
+        if (el) {
+          if (el.id === 'dash-gross-margin') {
+            el.textContent = '0.0%';
+          } else {
+            el.textContent = formatRM(0);
+          }
+        }
       });
 
       const targetEl = $('dash-target');
@@ -246,17 +290,33 @@ const AyamDashboard = (() => {
     /**
      * Render all numeric metric elements with count-up animations.
      */
-    _renderMetrics(revenue, cash, qr, expenses, profit, pct) {
+    _renderMetrics(metrics) {
       // Month label
       const monthLabel = $('dash-month-label');
       if (monthLabel) monthLabel.textContent = MONTHS[currentMonth] + ' ' + currentYear;
 
       // Animated number fills
-      animateNumber($('dash-revenue'), revenue);
-      animateNumber($('dash-revenue-cash'), cash);
-      animateNumber($('dash-revenue-qr'), qr);
-      animateNumber($('dash-expenses'), expenses);
-      animateNumber($('dash-profit'), profit);
+      animateNumber($('dash-revenue'), metrics.revenue);
+      animateNumber($('dash-revenue-cash'), metrics.cash);
+      animateNumber($('dash-revenue-qr'), metrics.qr);
+      
+      animateNumber($('dash-expenses'), metrics.expenses);
+      animateNumber($('dash-expenses-cogs'), metrics.cogs);
+      animateNumber($('dash-expenses-opex'), metrics.opex);
+
+      animateNumber($('dash-gross-profit'), metrics.grossProfit);
+      
+      // Margin animation
+      const marginEl = $('dash-gross-margin');
+      if (marginEl) {
+        animateNumber(marginEl, metrics.grossMargin, 800, false);
+        setTimeout(() => {
+          if (marginEl) marginEl.textContent = metrics.grossMargin.toFixed(1) + '%';
+        }, 850);
+      }
+
+      animateNumber($('dash-payable'), metrics.payable);
+      animateNumber($('dash-profit'), metrics.profit);
 
       // Target label
       const targetEl = $('dash-target');
@@ -264,6 +324,7 @@ const AyamDashboard = (() => {
 
       // Progress bar
       const progressBar = $('dash-progress-bar');
+      const pct = metrics.progressPct;
       if (progressBar) {
         // Color the bar based on progress
         if (pct >= 100) {
@@ -289,7 +350,7 @@ const AyamDashboard = (() => {
       // Profit text color: green if positive, red if negative
       const profitEl = $('dash-profit');
       if (profitEl) {
-        if (profit >= 0) {
+        if (metrics.profit >= 0) {
           profitEl.style.color = '#065F46'; // emerald-900
         } else {
           profitEl.style.color = '#991B1B'; // red-900
@@ -396,16 +457,37 @@ const AyamDashboard = (() => {
         });
       });
 
-      // Expense entries: [date, category, amount, notes, timestamp]
+      // Expense entries: [date, category, amount, type, vendor, status, notes, timestamp]
       (expenses || []).forEach(row => {
         const amt = parseFloat(row[2]) || 0;
         if (amt === 0) return;
+        
+        let labelText = row[1] || 'Expense';
+        let timestampVal = row[0];
+        
+        if (row.length <= 5) {
+          // Old format: [date, category, amount, notes, timestamp]
+          timestampVal = row[4] || row[0];
+          if (row[3]) {
+            labelText += ` (${row[3]})`;
+          }
+        } else {
+          // New format: [date, category, amount, type, vendor, status, notes, timestamp]
+          timestampVal = row[7] || row[0];
+          if (row[4] && row[4] !== 'General') {
+            labelText += ` - ${row[4]}`;
+          }
+          if (row[5] === 'Unpaid') {
+            labelText += ' [UNPAID]';
+          }
+        }
+        
         entries.push({
           type: 'expense',
           date: row[0],
           amount: amt,
-          label: row[1] || 'Expense',
-          timestamp: row[4] || row[0]
+          label: labelText,
+          timestamp: timestampVal
         });
       });
 

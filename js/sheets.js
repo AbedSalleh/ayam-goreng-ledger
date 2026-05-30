@@ -48,6 +48,9 @@ const AyamSheets = (() => {
       'Date',
       'Category',
       'Amount (RM)',
+      'Type',
+      'Vendor',
+      'Status',
       'Notes',
       'Timestamp',
     ],
@@ -200,7 +203,7 @@ const AyamSheets = (() => {
                 values: [HEADERS[TABS.DAILY_SALES]],
               },
               {
-                range: `${TABS.EXPENSES}!A1:E1`,
+                range: `${TABS.EXPENSES}!A1:H1`,
                 values: [HEADERS[TABS.EXPENSES]],
               },
               {
@@ -299,10 +302,13 @@ const AyamSheets = (() => {
      * @param {string}  params.date     – Date string.
      * @param {string}  params.category – Expense category.
      * @param {number}  [params.amount=0] – Amount in RM.
+     * @param {string}  [params.type='Direct (COGS)'] – Direct vs Indirect cost.
+     * @param {string}  [params.vendor='General'] – Counterparty/Supplier name.
+     * @param {string}  [params.status='Paid'] – Paid vs Unpaid.
      * @param {string}  [params.notes=''] – Free-text notes.
      * @returns {Promise<object>} The Sheets API append response.
      */
-    async appendExpenseRow({ date, category, amount = 0, notes = '' }) {
+    async appendExpenseRow({ date, category, amount = 0, type = 'Direct (COGS)', vendor = 'General', status = 'Paid', notes = '' }) {
       _requireInit();
 
       if (!date) {
@@ -318,6 +324,9 @@ const AyamSheets = (() => {
             date,
             category,
             amount,
+            type,
+            vendor,
+            status,
             notes,
             new Date().toISOString(),
           ],
@@ -325,7 +334,7 @@ const AyamSheets = (() => {
 
         const response = await gapi.client.sheets.spreadsheets.values.append({
           spreadsheetId,
-          range: `${TABS.EXPENSES}!A:E`,
+          range: `${TABS.EXPENSES}!A:H`,
           valueInputOption: 'USER_ENTERED',
           insertDataOption: 'INSERT_ROWS',
           resource: { values },
@@ -339,7 +348,7 @@ const AyamSheets = (() => {
      * Retrieve all expense data rows (excludes the header row).
      *
      * Each element is an array of cell values:
-     * `[Date, Category, Amount, Notes, Timestamp]`
+     * `[Date, Category, Amount, Type, Vendor, Status, Notes, Timestamp]`
      *
      * @returns {Promise<Array<Array<string>>>}
      */
@@ -349,7 +358,7 @@ const AyamSheets = (() => {
       return _call('Get expenses data', async () => {
         const response = await gapi.client.sheets.spreadsheets.values.get({
           spreadsheetId,
-          range: `${TABS.EXPENSES}!A2:E`,
+          range: `${TABS.EXPENSES}!A2:H`,
         });
         return response.result.values || [];
       });
