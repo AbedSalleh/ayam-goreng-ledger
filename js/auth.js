@@ -26,6 +26,9 @@ const AyamAuth = (() => {
   /** @type {string|null} */
   let savedClientId = null;
 
+  /** Whether the session has been restored from localStorage. */
+  let sessionRestored = false;
+
   /** @type {{ name: string, email: string, picture: string }|null} */
   let currentUser = null;
 
@@ -136,8 +139,14 @@ const AyamAuth = (() => {
     });
 
     console.info('[AyamAuth] Token client initialised.');
+  }
 
-    // Check if we have an active valid token stored in localStorage
+  /**
+   * Safely restore session from localStorage once libraries and configurations are loaded.
+   */
+  function _tryRestoreSession() {
+    if (!gapiInited || !gisInited || !savedClientId || sessionRestored) return;
+
     try {
       const savedSession = localStorage.getItem('ayam_ledger_token');
       if (savedSession) {
@@ -146,6 +155,7 @@ const AyamAuth = (() => {
           console.info('[AyamAuth] Restored active session from localStorage.');
           gapi.client.setToken(token);
           currentUser = user;
+          sessionRestored = true;
           // Defer callback slightly to let application bootstrap complete
           setTimeout(() => {
             if (onAuthChangeCallback) onAuthChangeCallback(true, currentUser);
@@ -215,6 +225,9 @@ const AyamAuth = (() => {
       } else {
         console.info('[AyamAuth] Saved client ID. Awaiting GIS script load to initialise token client.');
       }
+
+      // Try restoring the session in case libraries were already loaded
+      _tryRestoreSession();
     },
 
     /**
@@ -374,6 +387,7 @@ const AyamAuth = (() => {
     _maybeReady() {
       if (gapiInited && gisInited) {
         console.info('[AyamAuth] Both gapi and GIS ready.');
+        _tryRestoreSession();
       }
     },
   };
