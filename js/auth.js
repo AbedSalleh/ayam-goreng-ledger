@@ -120,12 +120,43 @@ const AyamAuth = (() => {
           return;
         }
 
+        gapi.client.setToken(tokenResponse);
         currentUser = await _fetchUserInfo(tokenResponse.access_token);
+
+        // Persist token session to localStorage
+        const expiresAt = Date.now() + (parseInt(tokenResponse.expires_in, 10) || 3600) * 1000;
+        localStorage.setItem('ayam_ledger_token', JSON.stringify({
+          token: tokenResponse,
+          expiresAt: expiresAt,
+          user: currentUser
+        }));
+
         if (onAuthChangeCallback) onAuthChangeCallback(true, currentUser);
       },
     });
 
     console.info('[AyamAuth] Token client initialised.');
+
+    // Check if we have an active valid token stored in localStorage
+    try {
+      const savedSession = localStorage.getItem('ayam_ledger_token');
+      if (savedSession) {
+        const { token, expiresAt, user } = JSON.parse(savedSession);
+        if (expiresAt > Date.now()) {
+          console.info('[AyamAuth] Restored active session from localStorage.');
+          gapi.client.setToken(token);
+          currentUser = user;
+          // Defer callback slightly to let application bootstrap complete
+          setTimeout(() => {
+            if (onAuthChangeCallback) onAuthChangeCallback(true, currentUser);
+          }, 50);
+        } else {
+          localStorage.removeItem('ayam_ledger_token');
+        }
+      }
+    } catch (e) {
+      console.warn('[AyamAuth] Failed to restore session:', e);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -188,8 +219,7 @@ const AyamAuth = (() => {
 
     /**
      * Trigger the Google sign-in flow.
-     * If no valid token exists, the user will see the consent screen.
-     * If a token already exists (e.g. page refresh), it tries a silent refresh.
+     * Use select_account instead of consent so that permissions are not repeatedly requested.
      */
     signIn() {
       if (!gapiInited || !gisInited) {
@@ -204,8 +234,8 @@ const AyamAuth = (() => {
 
       const existingToken = gapi.client.getToken();
       if (existingToken === null) {
-        // First sign-in → show consent prompt
-        tokenClient.requestAccessToken({ prompt: 'consent' });
+        // User choosing their account. Permission consent is automatically requested only if not previously granted.
+        tokenClient.requestAccessToken({ prompt: 'select_account' });
       } else {
         // Token exists → attempt silent refresh
         tokenClient.requestAccessToken({ prompt: '' });
@@ -227,6 +257,7 @@ const AyamAuth = (() => {
         }
         gapi.client.setToken(null);
       }
+      localStorage.removeItem('ayam_ledger_token');
       currentUser = null;
       if (onAuthChangeCallback) onAuthChangeCallback(false, null);
     },
@@ -293,7 +324,17 @@ const AyamAuth = (() => {
 
       try {
         const tokenResponse = await _requestTokenAsync({ prompt: '' });
+        gapi.client.setToken(tokenResponse);
         currentUser = await _fetchUserInfo(tokenResponse.access_token);
+
+        // Update persisted session
+        const expiresAt = Date.now() + (parseInt(tokenResponse.expires_in, 10) || 3600) * 1000;
+        localStorage.setItem('ayam_ledger_token', JSON.stringify({
+          token: tokenResponse,
+          expiresAt: expiresAt,
+          user: currentUser
+        }));
+
         if (onAuthChangeCallback) onAuthChangeCallback(true, currentUser);
         return tokenResponse.access_token;
       } catch (err) {
