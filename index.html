@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Ayam Goreng Ledger — Track Your Stall Revenue</title>
+  <meta name="description" content="Track your fried chicken stall's daily revenue, expenses, and profit with Ayam Goreng Ledger. Free, simple, and powered by Google Sheets.">
+  <meta name="theme-color" content="#92400E">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍗</text></svg>">
+
+  <!-- Tailwind CSS v3 CDN -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            brand: {
+              50:  '#FFF7ED',
+              100: '#FFEDD5',
+              200: '#FED7AA',
+              300: '#FDBA74',
+              400: '#FB923C',
+              500: '#F59E0B',
+              600: '#D97706',
+              700: '#B45309',
+              800: '#92400E',
+              900: '#78350F'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="font-sans bg-amber-50 text-gray-800 antialiased min-h-screen">
+
+  <!-- ============================================
+       SECTION 1: LOGIN SCREEN
+       ============================================ -->
+  <div id="login-screen" class="min-h-screen gradient-login flex items-center justify-center p-6 relative overflow-hidden">
+    <!-- Decorative floating circles -->
+    <div class="login-decoration w-72 h-72 -top-20 -right-20 absolute"></div>
+    <div class="login-decoration w-96 h-96 -bottom-32 -left-32 absolute"></div>
+    <div class="login-decoration w-48 h-48 top-1/3 right-10 absolute"></div>
+
+    <div class="w-full max-w-sm animate-bounce-in">
+      <!-- Login Card -->
+      <div class="bg-white/95 backdrop-blur-sm rounded-3xl shadow-warm-xl p-8 text-center relative overflow-hidden">
+        <!-- Subtle top accent -->
+        <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-brand-400 via-brand-500 to-brand-600"></div>
+
+        <!-- Chicken icon -->
+        <div class="mt-2 mb-4">
+          <span class="text-7xl inline-block animate-float select-none" role="img" aria-label="Fried chicken">🍗</span>
+        </div>
+
+        <!-- App Title -->
+        <h1 class="text-3xl font-extrabold text-brand-900 tracking-tight mb-1">
+          Ayam Goreng Ledger
+        </h1>
+        <p class="text-brand-700/70 text-sm font-medium mb-8">
+          Track your stall's daily hustle
+        </p>
+
+        <!-- Sign In Button -->
+        <button
+          id="btn-sign-in"
+          onclick="AyamApp.signIn()"
+          class="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 rounded-2xl px-6 py-4 text-base font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 hover:shadow-lg active:scale-95 transition-all duration-200 group"
+        >
+          <!-- Google Logo SVG -->
+          <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          <span class="group-hover:translate-x-0.5 transition-transform">Sign in with Google</span>
+        </button>
+
+        <!-- Info note -->
+        <div class="mt-6 flex items-center justify-center gap-2 text-xs text-gray-400">
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+          <span>Your data is stored in your own Google Drive</span>
+        </div>
+      </div>
+
+      <!-- Version footer -->
+      <p class="text-center text-white/30 text-xs mt-6">v1.0 · Made with ❤️ for warung owners</p>
+    </div>
+  </div>
+
+
+  <!-- ============================================
+       SECTION 2: APP SCREEN
+       ============================================ -->
+  <div id="app-screen" style="display:none" class="min-h-screen bg-amber-50/80">
+
+    <!-- ---- Header ---- -->
+    <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-amber-100/80 safe-top">
+      <div class="flex items-center justify-between px-4 py-3 max-w-2xl mx-auto">
+        <!-- Left: Brand -->
+        <div class="flex items-center gap-2">
+          <span class="text-2xl select-none">🍗</span>
+          <h2 class="text-lg font-bold text-brand-900 tracking-tight">Ayam Goreng</h2>
+        </div>
+
+        <!-- Right: Actions -->
+        <div class="flex items-center gap-2">
+          <!-- Settings -->
+          <button
+            id="btn-settings"
+            onclick="AyamApp.openSettings()"
+            class="p-2 rounded-xl text-gray-400 hover:text-brand-600 hover:bg-brand-50 active:scale-90 transition-all"
+            aria-label="Settings"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </button>
+
+          <!-- User Avatar -->
+          <img id="user-avatar" class="w-8 h-8 rounded-full bg-brand-200 border-2 border-brand-300 overflow-hidden flex-shrink-0 object-cover" src="" alt="User" onerror="this.style.display='none'" style="display:none">
+
+
+          <!-- Sign Out -->
+          <button
+            id="btn-sign-out"
+            onclick="AyamApp.signOut()"
+            class="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 active:scale-90 transition-all"
+            aria-label="Sign out"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ---- Content Area ---- -->
+    <main id="content-area" class="px-4 pt-4 pb-28 max-w-2xl mx-auto">
+
+      <!-- ======== VIEW: DASHBOARD ======== -->
+      <div id="view-dashboard" class="animate-fadeIn">
+
+        <!-- Month Navigator -->
+        <div class="flex items-center justify-between mb-5">
+          <button
+            id="btn-prev-month"
+            onclick="AyamDashboard.navigateMonth(-1)"
+            class="p-2.5 rounded-xl bg-white shadow-warm hover:shadow-warm-lg active:scale-90 transition-all text-brand-700"
+            aria-label="Previous month"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
+            </svg>
+          </button>
+
+          <span id="dash-month-label" class="text-lg font-bold text-brand-900 tracking-tight select-none">May 2026</span>
+
+          <button
+            id="btn-next-month"
+            onclick="AyamDashboard.navigateMonth(1)"
+            class="p-2.5 rounded-xl bg-white shadow-warm hover:shadow-warm-lg active:scale-90 transition-all text-brand-700"
+            aria-label="Next month"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="dash-loading" class="hidden flex-col items-center justify-center py-16 gap-3">
+          <div class="spinner"></div>
+          <span class="text-sm text-brand-600 font-medium">Loading your data...</span>
+        </div>
+
+        <!-- Metric Cards Grid -->
+        <div class="grid grid-cols-2 gap-3 mb-4 stagger-children">
+          <!-- Revenue Card -->
+          <div class="gradient-revenue rounded-2xl p-5 shadow-warm card-hover animate-slideUp">
+            <div class="flex items-center gap-1.5 mb-2">
+              <span class="text-lg">💰</span>
+              <span class="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Revenue</span>
+            </div>
+            <div id="dash-revenue" class="text-2xl font-extrabold text-emerald-900 metric-value">RM 0.00</div>
+            <div class="mt-2 flex flex-col gap-0.5 text-[11px] text-emerald-600/70">
+              <span>💵 Cash: <span id="dash-revenue-cash" class="font-semibold">RM 0.00</span></span>
+              <span>📱 QR: <span id="dash-revenue-qr" class="font-semibold">RM 0.00</span></span>
+            </div>
+          </div>
+
+          <!-- Expenses Card -->
+          <div class="gradient-expenses rounded-2xl p-5 shadow-warm card-hover animate-slideUp">
+            <div class="flex items-center gap-1.5 mb-2">
+              <span class="text-lg">📉</span>
+              <span class="text-xs font-semibold text-red-700 uppercase tracking-wider">Expenses</span>
+            </div>
+            <div id="dash-expenses" class="text-2xl font-extrabold text-red-900 metric-value">RM 0.00</div>
+          </div>
+        </div>
+
+        <!-- Net Profit Card (Full Width) -->
+        <div class="gradient-profit rounded-2xl p-6 shadow-warm-lg card-hover animate-slideUp mb-5 relative overflow-hidden">
+          <!-- Subtle decorative accent -->
+          <div class="absolute -right-4 -top-4 w-24 h-24 bg-brand-400/10 rounded-full"></div>
+          <div class="absolute -right-8 -bottom-8 w-32 h-32 bg-brand-500/5 rounded-full"></div>
+
+          <div class="relative">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-xl">🏆</span>
+              <span class="text-sm font-bold text-brand-800 uppercase tracking-wider">Net Profit</span>
+            </div>
+            <div id="dash-profit" class="text-4xl font-extrabold text-brand-900 metric-value mb-4">RM 0.00</div>
+
+            <!-- Progress Bar Section -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between text-xs font-medium">
+                <span id="dash-target" class="text-brand-700">Target: RM 2,000</span>
+                <span id="dash-progress-pct" class="text-brand-600 font-bold">0%</span>
+              </div>
+              <div class="progress-track h-3 bg-brand-200/50">
+                <div id="dash-progress-bar" class="progress-fill-bar h-full progress-animated" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Expense Category Breakdown -->
+        <div class="bg-white rounded-2xl shadow-warm p-5 mb-4 animate-fadeIn">
+          <h3 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <span>📊</span>
+            Where the money went
+          </h3>
+          <div id="dash-categories" class="space-y-3">
+            <!-- Populated by JS — example placeholder structure:
+            <div class="flex items-center gap-3">
+              <span class="text-xs text-gray-500 w-20 truncate">Chicken</span>
+              <div class="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
+                <div class="category-bar bg-brand-400 h-full" style="width: 60%"></div>
+              </div>
+              <span class="text-xs font-semibold text-gray-700 w-16 text-right">RM 450</span>
+            </div>
+            -->
+            <div class="empty-state text-sm py-8">
+              <span class="text-2xl block mb-2">📭</span>
+              No expense data yet
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="bg-white rounded-2xl shadow-warm p-5 animate-fadeIn">
+          <h3 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <span>🕐</span>
+            Recent entries
+          </h3>
+          <div id="dash-recent" class="space-y-2">
+            <div class="empty-state text-sm py-8">
+              <span class="text-2xl block mb-2">📝</span>
+              No entries yet — start recording!
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======== VIEW: SALES FORM ======== -->
+      <div id="view-sales" class="hidden animate-fadeIn">
+        <div class="mb-6">
+          <h2 class="text-2xl font-extrabold text-brand-900 flex items-center gap-2">
+            <span>💰</span> Record Sales
+          </h2>
+          <p class="text-sm text-brand-600/70 mt-1">Log today's revenue from your stall</p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-warm-lg p-6 space-y-5">
+          <!-- Date -->
+          <div class="form-group">
+            <label for="sales-date" class="block text-sm font-semibold text-gray-700 mb-1.5">
+              📅 Date
+            </label>
+            <input
+              type="date"
+              id="sales-date"
+              class="w-full min-h-[48px] px-4 py-3 bg-amber-50/50 border-2 border-amber-200/60 rounded-xl text-lg font-medium text-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-all outline-none"
+            >
+          </div>
+
+          <!-- Cash Revenue -->
+          <div class="form-group">
+            <label for="sales-cash" class="block text-sm font-semibold text-gray-700 mb-1.5">
+              💵 Cash Revenue
+            </label>
+            <div class="input-prefix">
+              <input
+                type="number"
+                id="sales-cash"
+                inputmode="decimal"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                class="w-full min-h-[48px] px-4 py-3 bg-amber-50/50 border-2 border-amber-200/60 rounded-xl text-lg font-medium text-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-all outline-none"
+              >
+            </div>
+          </div>
+
+          <!-- QR Revenue -->
+          <div class="form-group">
+            <label for="sales-qr" class="block text-sm font-semibold text-gray-700 mb-1.5">
+              📱 QR / DuitNow Revenue
+            </label>
+            <div class="input-prefix">
+              <input
+                type="number"
+                id="sales-qr"
+                inputmode="decimal"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                class="w-full min-h-[48px] px-4 py-3 bg-amber-50/50 border-2 border-amber-200/60 rounded-xl text-lg font-medium text-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-all outline-none"
+              >
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="form-group">
+            <label for="sales-notes" class="block text-sm font-semibold text-gray-700 mb-1.5">
+              📝 Notes
+            </label>
+            <textarea
+              id="sales-notes"
+              placeholder="e.g. Rainy day, Pasar Malam extra flock"
+              rows="2"
+              class="w-full px-4 py-3 bg-amber-50/50 border-2 border-amber-200/60 rounded-xl text-base text-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-all outline-none resize-none"
+            ></textarea>
+          </div>
+
+          <!-- Save Button -->
+          <button
+            id="btn-save-sales"
+            onclick="AyamApp.saveSales()"
+            class="w-full py-4 text-xl font-bold rounded-2xl text-white gradient-btn shadow-warm-lg active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 mt-2"
+          >
+            <span>💾</span> Save Sales
+          </button>
+        </div>
+      </div>
+
+      <!-- ======== VIEW: EXPENSE FORM ======== -->
+      <div id="view-expenses" class="hidden animate-fadeIn">
+        <div class="mb-6">
+          <h2 class="text-2xl font-extrabold text-brand-900 flex items-center gap-2">
+            <span>📝</span> Log Expense
+          </h2>
+          <p class="text-sm text-brand-600/70 mt-1">Track every ringgit that goes out</p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-warm-lg p-6 space-y-5">
+          <!-- Date -->
+          <div class="form-group">
+            <label for="expense-date" class="block text-sm font-semibold text-gray-700 mb-1.5">
+              📅 Date
+            </label>
+            <input
+              type="date"
+              id="expense-date"
+              class="w-full min-h-[48px] px-4 py-3 bg-amber-50/50 border-2 border-amber-200/60 rounded-xl text-lg font-medium text-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-all outline-none"
+            >
+          </div>
+
+          <!-- Category -->
+          <div class="form-group">
+            <label for="expense-category" class="block text-sm font-semibold text-gray-700 mb-1.5">
+              🏷️ Category
+            </label>
+            <select
+              id="expense-category"
+              class="w-full min-h-[48px] px-4 py-3 bg-amber-50/50 border-2 border-amber-200/60 rounded-xl text-lg font-medium text-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-all outline-none cursor-pointer"
+            >
+              <option value="" disabled selected>Select category...</option>
+              <option value="Raw Chicken">🐔 Raw Chicken</option>
+              <option value="Cooking Oil/Gas">🛢️ Cooking Oil / Gas</option>
+              <option value="Flour/Spices">🌶️ Flour / Spices</option>
+              <option value="Rent/Stall">🏪 Rent / Stall</option>
+              <option value="Packaging">📦 Packaging</option>
+              <option value="Transport">🚗 Transport</option>
+              <option value="Others">📋 Others</option>
+            </select>
+          </div>
+
+          <!-- Amount -->
+          <div class="form-group">
+            <label for="expense-amount" class="block text-sm font-semibold text-gray-700 mb-1.5">
+              💸 Amount
+            </label>
+            <div class="input-prefix">
+              <input
+                type="number"
+                id="expense-amount"
+                inputmode="decimal"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                class="w-full min-h-[48px] px-4 py-3 bg-amber-50/50 border-2 border-amber-200/60 rounded-xl text-lg font-medium text-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-all outline-none"
+              >
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="form-group">
+            <label for="expense-notes" class="block text-sm font-semibold text-gray-700 mb-1.5">
+              📝 Notes
+            </label>
+            <textarea
+              id="expense-notes"
+              placeholder="e.g. Bought 20kg from Pak Ali"
+              rows="2"
+              class="w-full px-4 py-3 bg-amber-50/50 border-2 border-amber-200/60 rounded-xl text-base text-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-all outline-none resize-none"
+            ></textarea>
+          </div>
+
+          <!-- Save Button -->
+          <button
+            id="btn-save-expense"
+            onclick="AyamApp.saveExpense()"
+            class="w-full py-4 text-xl font-bold rounded-2xl text-white gradient-btn shadow-warm-lg active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 mt-2"
+          >
+            <span>💾</span> Save Expense
+          </button>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ---- Bottom Navigation ---- -->
+    <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md bottom-nav safe-bottom">
+      <div class="flex items-stretch max-w-2xl mx-auto">
+        <!-- Dashboard Tab -->
+        <button
+          id="nav-dashboard"
+          onclick="AyamApp.switchView('dashboard')"
+          class="nav-tab active flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-brand-600"
+        >
+          <span class="text-xl leading-none">📊</span>
+          <span class="text-[10px] font-semibold tracking-wide">Dashboard</span>
+        </button>
+
+        <!-- Sales Tab -->
+        <button
+          id="nav-sales"
+          onclick="AyamApp.switchView('sales')"
+          class="nav-tab flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-gray-400"
+        >
+          <span class="text-xl leading-none">💰</span>
+          <span class="text-[10px] font-semibold tracking-wide">Sales</span>
+        </button>
+
+        <!-- Expenses Tab -->
+        <button
+          id="nav-expenses"
+          onclick="AyamApp.switchView('expenses')"
+          class="nav-tab flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-gray-400"
+        >
+          <span class="text-xl leading-none">📝</span>
+          <span class="text-[10px] font-semibold tracking-wide">Expenses</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+
+  <!-- ============================================
+       SECTION 3: SETTINGS MODAL
+       ============================================ -->
+  <div id="settings-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-6 backdrop-blur-modal">
+    <div class="bg-white rounded-2xl shadow-warm-xl w-full max-w-sm p-6 animate-slideUp relative">
+      <!-- Close Button -->
+      <button
+        id="btn-close-settings"
+        onclick="AyamApp.closeSettings()"
+        class="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:scale-90 transition-all"
+        aria-label="Close settings"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+
+      <!-- Title -->
+      <h3 class="text-xl font-bold text-gray-900 flex items-center gap-2 mb-6">
+        <span>⚙️</span> Settings
+      </h3>
+
+      <div class="space-y-5">
+        <!-- Target Profit -->
+        <div class="form-group">
+          <label for="settings-target" class="block text-sm font-semibold text-gray-700 mb-1.5">
+            🎯 Monthly Profit Target (RM)
+          </label>
+          <div class="input-prefix">
+            <input
+              type="number"
+              id="settings-target"
+              value="2000"
+              min="0"
+              step="100"
+              class="w-full min-h-[48px] px-4 py-3 bg-amber-50/50 border-2 border-amber-200/60 rounded-xl text-lg font-medium text-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-all outline-none"
+            >
+          </div>
+        </div>
+
+        <!-- Save Settings Button -->
+        <button
+          id="btn-save-settings"
+          onclick="AyamApp.saveSettings()"
+          class="w-full py-3.5 text-base font-bold rounded-xl text-white gradient-btn shadow-warm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2"
+        >
+          <span>✅</span> Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ============================================
+       SECTION 4: TOAST CONTAINER
+       ============================================ -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex flex-col items-center gap-2 pointer-events-none w-full max-w-sm px-4">
+    <!-- Toasts injected here by JS -->
+  </div>
+
+
+  <!-- ============================================
+       SCRIPTS
+       ============================================ -->
+  <!-- App Scripts -->
+  <script src="js/auth.js"></script>
+  <script src="js/sheets.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- Google SDK Scripts (async/defer to load after our scripts are evaluated) -->
+  <script async defer src="https://apis.google.com/js/api.js" onload="AyamAuth.handleGapiLoad()"></script>
+  <script async defer src="https://accounts.google.com/gsi/client" onload="AyamAuth.handleGisLoad()"></script>
+
+</body>
+</html>
