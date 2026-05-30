@@ -527,6 +527,77 @@ const AyamSheets = (() => {
     },
 
     /**
+     * Delete a row in a specific tab by matching its unique ISO timestamp.
+     * 
+     * @param {string} tabName - e.g., 'Daily_Sales' or 'Expenses'
+     * @param {string} timestamp - ISO timestamp to match
+     * @returns {Promise<boolean>} True if deleted, false if not found.
+     */
+    async deleteRowByTimestamp(tabName, timestamp) {
+      _requireInit();
+      if (!tabName || !timestamp) {
+        throw new Error('[AyamSheets] deleteRowByTimestamp: tabName and timestamp are required.');
+      }
+
+      return _call('Delete row by timestamp', async () => {
+        // Read columns A to H (covering all elements)
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: `${tabName}!A:H`,
+        });
+
+        const rows = response.result.values || [];
+        let foundIndex = -1;
+
+        // Iterate through rows (skipping header at index 0)
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.includes(timestamp)) {
+            foundIndex = i;
+            break;
+          }
+        }
+
+        if (foundIndex === -1) {
+          console.warn(`[AyamSheets] Row with timestamp ${timestamp} not found in ${tabName}.`);
+          return false;
+        }
+
+        // Get sheet ID by tab name
+        const metadata = await gapi.client.sheets.spreadsheets.get({
+          spreadsheetId,
+        });
+        const sheets = metadata.result.sheets || [];
+        const sheet = sheets.find(s => s.properties.title === tabName);
+        if (!sheet) {
+          throw new Error(`Sheet ${tabName} not found.`);
+        }
+        const sheetId = sheet.properties.sheetId;
+
+        // Request deleteDimension (startIndex is inclusive, endIndex is exclusive, 0-indexed)
+        await gapi.client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          resource: {
+            requests: [
+              {
+                deleteDimension: {
+                  range: {
+                    sheetId: sheetId,
+                    dimension: 'ROWS',
+                    startIndex: foundIndex,
+                    endIndex: foundIndex + 1,
+                  },
+                },
+              },
+            ],
+          },
+        });
+
+        return true;
+      });
+    },
+
+    /**
      * Return the URL to open the spreadsheet in a browser.
      *
      * @returns {string|null}

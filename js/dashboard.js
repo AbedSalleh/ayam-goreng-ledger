@@ -555,9 +555,61 @@ const AyamDashboard = (() => {
         `;
         amtEl.textContent = (isSale ? '+' : '-') + formatRM(entry.amount);
 
+        // Delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 active:scale-90 transition-all ml-1.5 flex-shrink-0';
+        deleteBtn.innerHTML = `
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        `;
+        deleteBtn.title = 'Delete transaction';
+        deleteBtn.onclick = async () => {
+          if (confirm(`Are you sure you want to delete this "${entry.label}" entry?`)) {
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = `
+              <svg class="w-4 h-4 animate-spin text-red-500" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+            `;
+            try {
+              const tab = isSale ? 'Daily_Sales' : 'Expenses';
+              const success = await AyamSheets.deleteRowByTimestamp(tab, entry.timestamp);
+              if (success) {
+                if (typeof AyamApp !== 'undefined') {
+                  AyamApp.showToast('Transaction deleted successfully', 'success');
+                }
+                // Reload dashboard data
+                await AyamDashboard.load();
+                if (typeof AyamApp !== 'undefined') {
+                  AyamApp.populateVendorSuggestions();
+                }
+              } else {
+                if (typeof AyamApp !== 'undefined') {
+                  AyamApp.showToast('Failed to find transaction to delete', 'error');
+                }
+              }
+            } catch (err) {
+              console.error('Delete error:', err);
+              if (typeof AyamApp !== 'undefined') {
+                AyamApp.showToast('Error deleting transaction', 'error');
+              }
+            } finally {
+              deleteBtn.disabled = false;
+              deleteBtn.innerHTML = `
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              `;
+            }
+          }
+        };
+
         row.appendChild(icon);
         row.appendChild(info);
         row.appendChild(amtEl);
+        row.appendChild(deleteBtn);
         container.appendChild(row);
       });
 
