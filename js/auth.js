@@ -23,6 +23,9 @@ const AyamAuth = (() => {
   /** Callback invoked whenever the auth state changes: (isSignedIn, user) */
   let onAuthChangeCallback = null;
 
+  /** @type {string|null} */
+  let savedClientId = null;
+
   /** @type {{ name: string, email: string, picture: string }|null} */
   let currentUser = null;
 
@@ -101,6 +104,30 @@ const AyamAuth = (() => {
     });
   }
 
+  /**
+   * Helper to initialize the token client once both client ID and GIS are loaded.
+   */
+  function _initTokenClient() {
+    if (!savedClientId || !gisInited || tokenClient) return;
+
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: savedClientId,
+      scope: SCOPES,
+      callback: async (tokenResponse) => {
+        if (tokenResponse.error !== undefined) {
+          console.error('[AyamAuth] Token callback error:', tokenResponse);
+          if (onAuthChangeCallback) onAuthChangeCallback(false, null);
+          return;
+        }
+
+        currentUser = await _fetchUserInfo(tokenResponse.access_token);
+        if (onAuthChangeCallback) onAuthChangeCallback(true, currentUser);
+      },
+    });
+
+    console.info('[AyamAuth] Token client initialised.');
+  }
+
   // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
@@ -131,6 +158,7 @@ const AyamAuth = (() => {
     handleGisLoad() {
       gisInited = true;
       console.info('[AyamAuth] GIS library loaded.');
+      _initTokenClient();
       this._maybeReady();
     },
 
@@ -148,24 +176,14 @@ const AyamAuth = (() => {
         return;
       }
 
+      savedClientId = clientId;
       onAuthChangeCallback = onAuthChange;
 
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: SCOPES,
-        callback: async (tokenResponse) => {
-          if (tokenResponse.error !== undefined) {
-            console.error('[AyamAuth] Token callback error:', tokenResponse);
-            if (onAuthChangeCallback) onAuthChangeCallback(false, null);
-            return;
-          }
-
-          currentUser = await _fetchUserInfo(tokenResponse.access_token);
-          if (onAuthChangeCallback) onAuthChangeCallback(true, currentUser);
-        },
-      });
-
-      console.info('[AyamAuth] Initialised with client ID.');
+      if (gisInited) {
+        _initTokenClient();
+      } else {
+        console.info('[AyamAuth] Saved client ID. Awaiting GIS script load to initialise token client.');
+      }
     },
 
     /**
