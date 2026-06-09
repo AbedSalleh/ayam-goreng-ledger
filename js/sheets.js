@@ -31,6 +31,7 @@ const AyamSheets = (() => {
   const TABS = {
     DAILY_SALES: 'Daily_Sales',
     EXPENSES: 'Expenses',
+    INVENTORY: 'Inventory',
     MONTHLY_SUMMARY: 'Monthly_Summary',
     SETTINGS: 'Settings',
   };
@@ -51,6 +52,14 @@ const AyamSheets = (() => {
       'Type',
       'Vendor',
       'Status',
+      'Notes',
+      'Timestamp',
+    ],
+    [TABS.INVENTORY]: [
+      'Item Name',
+      'Quantity',
+      'Unit',
+      'Min Alert Quantity',
       'Notes',
       'Timestamp',
     ],
@@ -102,6 +111,195 @@ const AyamSheets = (() => {
     }
   }
 
+  /**
+   * Scan Daily_Sales, Expenses, and Inventory tabs for rows starting at shifted columns,
+   * align them back to Column A, and update the sheets.
+   * @private
+   */
+  async function _repairColumnAlignments() {
+    _requireInit();
+    console.info('[AyamSheets] Running auto-repair check for column alignments...');
+
+    // 1. Repair Expenses
+    // Shifted rows will have empty cells in columns A-G (index 0-6) but data in H+
+    try {
+      const expResponse = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${TABS.EXPENSES}!A2:P`, // read widely to capture columns H onwards
+      });
+      const expRows = expResponse.result.values || [];
+      let expUpdated = false;
+      const expBatchUpdates = [];
+
+      for (let i = 0; i < expRows.length; i++) {
+        const row = expRows[i];
+        const rowNum = i + 2; // header is row 1
+        
+        // Check if it's a shifted row: columns A to G are empty, but column H is not empty
+        const hasDataInH = row.length > 7 && row[7];
+        const isEmptyBeforeH = row.slice(0, 7).every(val => !val);
+
+        if (hasDataInH && isEmptyBeforeH) {
+          // This row starts at Column H (index 7).
+          // Shift columns H+ back to Column A
+          const shiftedData = row.slice(7);
+          
+          // Pad the shifted data to exactly 8 elements (matching new Expenses schema: A to H)
+          const correctedRow = [...shiftedData];
+          while (correctedRow.length < 8) {
+            correctedRow.push('');
+          }
+          
+          console.info(`[AyamSheets] Repairing shifted Expense row ${rowNum}:`, correctedRow);
+          
+          // Push update to rewrite columns A-H
+          expBatchUpdates.push({
+            range: `${TABS.EXPENSES}!A${rowNum}:H${rowNum}`,
+            values: [correctedRow],
+          });
+
+          // Also clear the shifted columns (H onwards) to prevent leftover data
+          const clearLength = row.length - 8;
+          if (clearLength > 0) {
+            const emptyPadding = Array(clearLength).fill('');
+            expBatchUpdates.push({
+              range: `${TABS.EXPENSES}!I${rowNum}:${String.fromCharCode(73 + clearLength - 1)}${rowNum}`,
+              values: [emptyPadding],
+            });
+          }
+          expUpdated = true;
+        }
+      }
+
+      if (expUpdated && expBatchUpdates.length > 0) {
+        await gapi.client.sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          resource: {
+            valueInputOption: 'USER_ENTERED',
+            data: expBatchUpdates,
+          },
+        });
+        console.info('[AyamSheets] Expenses alignment repair complete.');
+      }
+    } catch (err) {
+      console.error('[AyamSheets] Expenses repair failed:', err);
+    }
+
+    // 2. Repair Daily_Sales
+    // Shifted rows will have empty cells in columns A-E (index 0-4) but data in F+ (index 5+)
+    try {
+      const salesResponse = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${TABS.DAILY_SALES}!A2:L`, // read widely to capture columns F onwards
+      });
+      const salesRows = salesResponse.result.values || [];
+      let salesUpdated = false;
+      const salesBatchUpdates = [];
+
+      for (let i = 0; i < salesRows.length; i++) {
+        const row = salesRows[i];
+        const rowNum = i + 2;
+
+        const hasDataInF = row.length > 5 && row[5];
+        const isEmptyBeforeF = row.slice(0, 5).every(val => !val);
+
+        if (hasDataInF && isEmptyBeforeF) {
+          const shiftedData = row.slice(5);
+          const correctedRow = [...shiftedData];
+          while (correctedRow.length < 6) { // Daily_Sales has 6 columns
+            correctedRow.push('');
+          }
+          console.info(`[AyamSheets] Repairing shifted Sales row ${rowNum}:`, correctedRow);
+
+          salesBatchUpdates.push({
+            range: `${TABS.DAILY_SALES}!A${rowNum}:F${rowNum}`,
+            values: [correctedRow],
+          });
+
+          const clearLength = row.length - 6;
+          if (clearLength > 0) {
+            const emptyPadding = Array(clearLength).fill('');
+            salesBatchUpdates.push({
+              range: `${TABS.DAILY_SALES}!G${rowNum}:${String.fromCharCode(71 + clearLength - 1)}${rowNum}`,
+              values: [emptyPadding],
+            });
+          }
+          salesUpdated = true;
+        }
+      }
+
+      if (salesUpdated && salesBatchUpdates.length > 0) {
+        await gapi.client.sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          resource: {
+            valueInputOption: 'USER_ENTERED',
+            data: salesBatchUpdates,
+          },
+        });
+        console.info('[AyamSheets] Daily_Sales alignment repair complete.');
+      }
+    } catch (err) {
+      console.error('[AyamSheets] Daily_Sales repair failed:', err);
+    }
+
+    // 3. Repair Inventory
+    // Shifted rows will have empty cells in columns A-E (index 0-4) but data in F+ (index 5+)
+    try {
+      const invResponse = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${TABS.INVENTORY}!A2:L`,
+      });
+      const invRows = invResponse.result.values || [];
+      let invUpdated = false;
+      const invBatchUpdates = [];
+
+      for (let i = 0; i < invRows.length; i++) {
+        const row = invRows[i];
+        const rowNum = i + 2;
+
+        const hasDataInF = row.length > 5 && row[5];
+        const isEmptyBeforeF = row.slice(0, 5).every(val => !val);
+
+        if (hasDataInF && isEmptyBeforeF) {
+          const shiftedData = row.slice(5);
+          const correctedRow = [...shiftedData];
+          while (correctedRow.length < 6) { // Inventory has 6 columns
+            correctedRow.push('');
+          }
+          console.info(`[AyamSheets] Repairing shifted Inventory row ${rowNum}:`, correctedRow);
+
+          invBatchUpdates.push({
+            range: `${TABS.INVENTORY}!A${rowNum}:F${rowNum}`,
+            values: [correctedRow],
+          });
+
+          const clearLength = row.length - 6;
+          if (clearLength > 0) {
+            const emptyPadding = Array(clearLength).fill('');
+            invBatchUpdates.push({
+              range: `${TABS.INVENTORY}!G${rowNum}:${String.fromCharCode(71 + clearLength - 1)}${rowNum}`,
+              values: [emptyPadding],
+            });
+          }
+          invUpdated = true;
+        }
+      }
+
+      if (invUpdated && invBatchUpdates.length > 0) {
+        await gapi.client.sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          resource: {
+            valueInputOption: 'USER_ENTERED',
+            data: invBatchUpdates,
+          },
+        });
+        console.info('[AyamSheets] Inventory alignment repair complete.');
+      }
+    } catch (err) {
+      console.error('[AyamSheets] Inventory repair failed:', err);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
@@ -137,12 +335,16 @@ const AyamSheets = (() => {
         console.info(
           `[AyamSheets] Found existing ledger: ${spreadsheetId}`,
         );
+        // Ensure the inventory tab exists in the existing ledger
+        await this._ensureInventoryTabExists();
       } else {
         spreadsheetId = await this._createLedger();
         console.info(
           `[AyamSheets] Created new ledger: ${spreadsheetId}`,
         );
       }
+      // Run the repair utility to fix any column misalignments
+      await _repairColumnAlignments();
       return spreadsheetId;
     },
 
@@ -179,8 +381,9 @@ const AyamSheets = (() => {
             sheets: [
               { properties: { title: TABS.DAILY_SALES, index: 0 } },
               { properties: { title: TABS.EXPENSES, index: 1 } },
-              { properties: { title: TABS.MONTHLY_SUMMARY, index: 2 } },
-              { properties: { title: TABS.SETTINGS, index: 3 } },
+              { properties: { title: TABS.INVENTORY, index: 2 } },
+              { properties: { title: TABS.MONTHLY_SUMMARY, index: 3 } },
+              { properties: { title: TABS.SETTINGS, index: 4 } },
             ],
           },
         });
@@ -207,6 +410,10 @@ const AyamSheets = (() => {
                 values: [HEADERS[TABS.EXPENSES]],
               },
               {
+                range: `${TABS.INVENTORY}!A1:F1`,
+                values: [HEADERS[TABS.INVENTORY]],
+              },
+              {
                 range: `${TABS.MONTHLY_SUMMARY}!A1`,
                 values: [HEADERS[TABS.MONTHLY_SUMMARY]],
               },
@@ -219,6 +426,44 @@ const AyamSheets = (() => {
         });
 
         return id;
+      });
+    },
+
+    /**
+     * Ensure the Inventory tab exists in the existing ledger spreadsheet.
+     * @private
+     */
+    async _ensureInventoryTabExists() {
+      _requireInit();
+      return _call('Ensure inventory tab exists', async () => {
+        const metadata = await gapi.client.sheets.spreadsheets.get({
+          spreadsheetId,
+        });
+        const sheets = metadata.result.sheets || [];
+        const hasInventory = sheets.some(s => s.properties.title === TABS.INVENTORY);
+
+        if (!hasInventory) {
+          console.info(`[AyamSheets] Upgrading ledger: adding ${TABS.INVENTORY} tab.`);
+          await gapi.client.sheets.spreadsheets.batchUpdate({
+            spreadsheetId,
+            resource: {
+              requests: [
+                {
+                  addSheet: {
+                    properties: { title: TABS.INVENTORY }
+                  }
+                }
+              ]
+            }
+          });
+          // Write headers
+          await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: `${TABS.INVENTORY}!A1:F1`,
+            valueInputOption: 'RAW',
+            resource: { values: [HEADERS[TABS.INVENTORY]] },
+          });
+        }
       });
     },
 
@@ -261,7 +506,7 @@ const AyamSheets = (() => {
 
         const response = await gapi.client.sheets.spreadsheets.values.append({
           spreadsheetId,
-          range: `${TABS.DAILY_SALES}!A:F`,
+          range: `${TABS.DAILY_SALES}!A:A`,
           valueInputOption: 'USER_ENTERED',
           insertDataOption: 'INSERT_ROWS',
           resource: { values },
@@ -334,7 +579,7 @@ const AyamSheets = (() => {
 
         const response = await gapi.client.sheets.spreadsheets.values.append({
           spreadsheetId,
-          range: `${TABS.EXPENSES}!A:H`,
+          range: `${TABS.EXPENSES}!A:A`,
           valueInputOption: 'USER_ENTERED',
           insertDataOption: 'INSERT_ROWS',
           resource: { values },
@@ -494,7 +739,7 @@ const AyamSheets = (() => {
           // Append new row
           const appendResponse = await gapi.client.sheets.spreadsheets.values.append({
             spreadsheetId,
-            range: `${TABS.SETTINGS}!A:B`,
+            range: `${TABS.SETTINGS}!A:A`,
             valueInputOption: 'RAW',
             insertDataOption: 'INSERT_ROWS',
             resource: { values: [[key, value]] },
@@ -586,6 +831,205 @@ const AyamSheets = (() => {
                     dimension: 'ROWS',
                     startIndex: foundIndex,
                     endIndex: foundIndex + 1,
+                  },
+                },
+              },
+            ],
+          },
+        });
+
+        return true;
+      });
+    },
+
+    /**
+     * Retrieve all inventory data (excludes the header row).
+     *
+     * Each element is an array of cell values:
+     * `[Item Name, Quantity, Unit, Min Alert Quantity, Notes, Timestamp]`
+     *
+     * @returns {Promise<Array<Array<string>>>}
+     */
+    async getInventoryData() {
+      _requireInit();
+
+      return _call('Get inventory data', async () => {
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: `${TABS.INVENTORY}!A2:F`,
+        });
+        return response.result.values || [];
+      });
+    },
+
+    /**
+     * Add or update an inventory item.
+     *
+     * @param {object} params
+     * @param {string} [params.originalName] - Old name of the item, if updating.
+     * @param {string} params.name - Item name.
+     * @param {number} params.quantity - Stock level.
+     * @param {string} params.unit - Unit (e.g. kg).
+     * @param {number} params.minAlert - Alert threshold.
+     * @param {string} [params.notes=''] - Notes.
+     */
+    async saveInventoryItem({ originalName, name, quantity, unit, minAlert, notes = '' }) {
+      _requireInit();
+
+      if (!name) {
+        throw new Error('[AyamSheets] saveInventoryItem: "name" is required.');
+      }
+
+      return _call('Save inventory item', async () => {
+        const rows = await this.getInventoryData();
+        const searchName = originalName || name;
+        
+        let foundIndex = -1;
+        for (let i = 0; i < rows.length; i++) {
+          if (rows[i][0] && rows[i][0].toLowerCase() === searchName.toLowerCase()) {
+            foundIndex = i;
+            break;
+          }
+        }
+
+        const values = [[
+          name,
+          quantity,
+          unit,
+          minAlert,
+          notes,
+          new Date().toISOString()
+        ]];
+
+        if (foundIndex !== -1) {
+          // Update existing row (index + 2 because header is row 1)
+          const rowNum = foundIndex + 2;
+          await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: `${TABS.INVENTORY}!A${rowNum}:F${rowNum}`,
+            valueInputOption: 'USER_ENTERED',
+            resource: { values },
+          });
+        } else {
+          // If we didn't specify originalName but name already exists, reject
+          if (!originalName) {
+            const nameExists = rows.some(r => r[0] && r[0].toLowerCase() === name.toLowerCase());
+            if (nameExists) {
+              throw new Error(`An item named "${name}" already exists.`);
+            }
+          }
+
+          // Append new row
+          await gapi.client.sheets.spreadsheets.values.append({
+            spreadsheetId,
+            range: `${TABS.INVENTORY}!A:A`,
+            valueInputOption: 'USER_ENTERED',
+            insertDataOption: 'INSERT_ROWS',
+            resource: { values },
+          });
+        }
+      });
+    },
+
+    /**
+     * Fast update for single item quantity & timestamp (e.g., inline +/- buttons).
+     *
+     * @param {string} name
+     * @param {number} newQuantity
+     */
+    async updateInventoryQuantity(name, newQuantity) {
+      _requireInit();
+
+      if (!name) {
+        throw new Error('[AyamSheets] updateInventoryQuantity: "name" is required.');
+      }
+
+      return _call('Update inventory quantity', async () => {
+        const rows = await this.getInventoryData();
+        let foundIndex = -1;
+        for (let i = 0; i < rows.length; i++) {
+          if (rows[i][0] && rows[i][0].toLowerCase() === name.toLowerCase()) {
+            foundIndex = i;
+            break;
+          }
+        }
+
+        if (foundIndex === -1) {
+          throw new Error(`Inventory item "${name}" not found.`);
+        }
+
+        const rowNum = foundIndex + 2;
+
+        await gapi.client.sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          resource: {
+            valueInputOption: 'USER_ENTERED',
+            data: [
+              {
+                range: `${TABS.INVENTORY}!B${rowNum}`,
+                values: [[newQuantity]]
+              },
+              {
+                range: `${TABS.INVENTORY}!F${rowNum}`,
+                values: [[new Date().toISOString()]]
+              }
+            ]
+          }
+        });
+      });
+    },
+
+    /**
+     * Delete an inventory item by name.
+     *
+     * @param {string} name
+     * @returns {Promise<boolean>}
+     */
+    async deleteInventoryItem(name) {
+      _requireInit();
+
+      if (!name) {
+        throw new Error('[AyamSheets] deleteInventoryItem: "name" is required.');
+      }
+
+      return _call('Delete inventory item', async () => {
+        const rows = await this.getInventoryData();
+        let foundIndex = -1;
+        for (let i = 0; i < rows.length; i++) {
+          if (rows[i][0] && rows[i][0].toLowerCase() === name.toLowerCase()) {
+            foundIndex = i;
+            break;
+          }
+        }
+
+        if (foundIndex === -1) {
+          console.warn(`[AyamSheets] Inventory item "${name}" not found.`);
+          return false;
+        }
+
+        const sheetIndex = foundIndex + 1; // +1 because rows starts at index 2 (1-based row 2 is 0-indexed index 0 in rows)
+
+        const metadata = await gapi.client.sheets.spreadsheets.get({
+          spreadsheetId,
+        });
+        const sheets = metadata.result.sheets || [];
+        const sheet = sheets.find(s => s.properties.title === TABS.INVENTORY);
+        if (!sheet) {
+          throw new Error(`Sheet ${TABS.INVENTORY} not found.`);
+        }
+        const sheetId = sheet.properties.sheetId;
+
+        await gapi.client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          resource: {
+            requests: [
+              {
+                deleteDimension: {
+                  range: {
+                    sheetId: sheetId,
+                    dimension: 'ROWS',
+                    startIndex: sheetIndex,
+                    endIndex: sheetIndex + 1,
                   },
                 },
               },

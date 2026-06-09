@@ -7,6 +7,7 @@ const AyamDashboard = (() => {
   let currentMonth = new Date().getMonth(); // 0-indexed
   let currentYear = new Date().getFullYear();
   let targetProfit = 2000;
+  let allTxEntries = [];
 
   // Month names
   const MONTHS = [
@@ -86,8 +87,36 @@ const AyamDashboard = (() => {
   }
 
   /**
+   * Parse a date string timezone-safely, supporting YYYY-MM-DD (hyphens) as UTC
+   * and local formats (slashes) as local time.
+   * @param {string} dateStr
+   * @returns {{ year: number, month: number, day: number }|null}
+   */
+  function parseDateTimezoneSafe(dateStr) {
+    if (!dateStr) return null;
+    if (dateStr.includes('-')) {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        return {
+          year: d.getUTCFullYear(),
+          month: d.getUTCMonth(),
+          day: d.getUTCDate()
+        };
+      }
+    }
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      return {
+        year: d.getFullYear(),
+        month: d.getMonth(),
+        day: d.getDate()
+      };
+    }
+    return null;
+  }
+
+  /**
    * Filter rows by current month/year.
-   * Date column is in YYYY-MM-DD format (from HTML date input).
    * @param {Array[]} rows
    * @param {number} dateColIndex
    * @returns {Array[]}
@@ -95,21 +124,22 @@ const AyamDashboard = (() => {
   function filterByMonth(rows, dateColIndex) {
     return rows.filter(row => {
       if (!row[dateColIndex]) return false;
-      const date = new Date(row[dateColIndex]);
-      return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+      const parsed = parseDateTimezoneSafe(row[dateColIndex]);
+      if (!parsed) return false;
+      return parsed.month === currentMonth && parsed.year === currentYear;
     });
   }
 
   /**
-   * Format a YYYY-MM-DD date string into a human-readable form.
+   * Format a date string into a human-readable form.
    * @param {string} dateStr
    * @returns {string} e.g. "30 May"
    */
   function formatDateShort(dateStr) {
     if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3);
+    const parsed = parseDateTimezoneSafe(dateStr);
+    if (!parsed) return dateStr;
+    return parsed.day + ' ' + MONTHS[parsed.month].slice(0, 3);
   }
 
   /**
@@ -133,13 +163,41 @@ const AyamDashboard = (() => {
 
       try {
         // Fetch data in parallel
-        const [salesRows, expenseRows, target] = await Promise.all([
+        const [salesRows, expenseRows, target, inventoryRows] = await Promise.all([
           AyamSheets.getSalesData(),
           AyamSheets.getExpensesData(),
-          AyamSheets.getTargetProfit()
+          AyamSheets.getTargetProfit(),
+          AyamSheets.getInventoryData().catch(e => {
+            console.warn('Could not load inventory for dashboard alerts:', e);
+            return [];
+          })
         ]);
 
         targetProfit = target || 2000;
+
+        // Check low stock items
+        const lowStockItems = [];
+        (inventoryRows || []).forEach(row => {
+          const name = row[0];
+          const qty = parseFloat(row[1]) || 0;
+          const minAlert = parseFloat(row[3]) || 0;
+          const unit = row[2] || '';
+          if (name && qty <= minAlert) {
+            lowStockItems.push(`${name} (${qty} ${unit})`);
+          }
+        });
+
+        // Show/hide low stock warning banner
+        const alertBanner = $('dash-stock-alert');
+        const alertText = $('dash-stock-alert-text');
+        if (alertBanner && alertText) {
+          if (lowStockItems.length > 0) {
+            alertText.textContent = `The following items are running low: ${lowStockItems.join(', ')}.`;
+            alertBanner.classList.remove('hidden');
+          } else {
+            alertBanner.classList.add('hidden');
+          }
+        }
 
         // Filter by current month
         const monthlySales = filterByMonth(salesRows || [], 0);
@@ -268,7 +326,11 @@ const AyamDashboard = (() => {
       if (recentEl) {
         recentEl.innerHTML = `
           <div style="text-align:center; padding:2.5rem 1rem; opacity:0.7;">
-            <div style="font-size:3rem; margin-bottom:0.75rem;">🍗</div>
+            <div style="display:flex; justify-content:center; margin-bottom:0.75rem; color:#94A3B8;">
+              <svg style="width:3rem; height:3rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+            </div>
             <p style="font-size:1.1rem; font-weight:600; margin-bottom:0.35rem; color:#292524;">
               No data for this month yet
             </p>
@@ -435,12 +497,7 @@ const AyamDashboard = (() => {
      * Render recent transactions list — last 5 entries combined from sales & expenses.
      */
     _renderRecent(sales, expenses) {
-      const container = $('dash-recent');
-      if (!container) return;
-      container.innerHTML = '';
-
-      // Build unified list
-      const entries = [];
+      allTxEntries = [];
 
       // Sales entries: [date, cash, qr, total, notes, timestamp]
       (sales || []).forEach(row => {
@@ -448,7 +505,7 @@ const AyamDashboard = (() => {
         const qr = parseFloat(row[2]) || 0;
         const total = cash + qr;
         if (total === 0) return;
-        entries.push({
+        allTxEntries.push({
           type: 'sale',
           date: row[0],
           amount: total,
@@ -482,7 +539,7 @@ const AyamDashboard = (() => {
           }
         }
         
-        entries.push({
+        allTxEntries.push({
           type: 'expense',
           date: row[0],
           amount: amt,
@@ -491,26 +548,71 @@ const AyamDashboard = (() => {
         });
       });
 
-      // Sort by timestamp descending (newest first)
-      entries.sort((a, b) => {
-        const tA = new Date(a.timestamp).getTime() || 0;
-        const tB = new Date(b.timestamp).getTime() || 0;
-        return tB - tA;
+      // Render with filters/sort
+      this.filterRecent();
+    },
+
+    /**
+     * Filter and sort the cached transactions, then render them to the DOM.
+     */
+    filterRecent() {
+      const container = $('dash-recent');
+      if (!container) return;
+
+      const searchInput = $('tx-search');
+      const typeFilter = $('tx-filter-type');
+      const sortSelect = $('tx-sort');
+
+      const query = (searchInput ? searchInput.value : '').toLowerCase().trim();
+      const type = typeFilter ? typeFilter.value : 'all';
+      const sortBy = sortSelect ? sortSelect.value : 'time-desc';
+
+      // 1. Filter
+      let filtered = allTxEntries;
+      if (type !== 'all') {
+        filtered = filtered.filter(entry => entry.type === type);
+      }
+      if (query) {
+        filtered = filtered.filter(entry => {
+          return (
+            entry.label.toLowerCase().includes(query) ||
+            entry.date.includes(query) ||
+            String(entry.amount).includes(query)
+          );
+        });
+      }
+
+      // 2. Sort
+      filtered.sort((a, b) => {
+        if (sortBy === 'time-desc') {
+          const tA = new Date(a.timestamp).getTime() || 0;
+          const tB = new Date(b.timestamp).getTime() || 0;
+          return tB - tA;
+        } else if (sortBy === 'time-asc') {
+          const tA = new Date(a.timestamp).getTime() || 0;
+          const tB = new Date(b.timestamp).getTime() || 0;
+          return tA - tB;
+        } else if (sortBy === 'amount-desc') {
+          return b.amount - a.amount;
+        } else if (sortBy === 'amount-asc') {
+          return a.amount - b.amount;
+        }
+        return 0;
       });
 
-      // Take last 5
-      const recent = entries.slice(0, 5);
+      // 3. Render
+      container.innerHTML = '';
 
-      if (recent.length === 0) {
+      if (filtered.length === 0) {
         container.innerHTML = `
-          <p style="text-align:center; padding:1rem; opacity:0.5; font-size:0.85rem; color:#78716C;">
-            No recent transactions
+          <p style="text-align:center; padding:2.5rem 1rem; opacity:0.5; font-size:0.85rem; color:#78716C;">
+            No transactions match search/filter.
           </p>
         `;
         return;
       }
 
-      recent.forEach((entry, index) => {
+      filtered.forEach((entry, index) => {
         const isSale = entry.type === 'sale';
         const row = document.createElement('div');
         row.style.cssText = `
@@ -519,18 +621,21 @@ const AyamDashboard = (() => {
           border-bottom:1px solid rgba(0,0,0,0.06);
           opacity:0; transform:translateY(8px);
           animation:dashFadeIn 0.35s ease forwards;
-          animation-delay:${index * 0.07}s;
+          animation-delay:${Math.min(index * 0.03, 0.5)}s;
         `;
 
-        // Icon circle
+        // Icon badge (CR / DR)
         const icon = document.createElement('div');
         icon.style.cssText = `
-          width:36px; height:36px; border-radius:50%;
+          width:36px; height:36px; border-radius:8px;
           display:flex; align-items:center; justify-content:center;
-          font-size:1rem; flex-shrink:0;
-          background:${isSale ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'};
+          font-size:0.75rem; font-weight:700; flex-shrink:0;
+          font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          background:${isSale ? 'rgba(13,148,136,0.1)' : 'rgba(225,29,72,0.1)'};
+          color:${isSale ? '#0d9488' : '#e11d48'};
+          border:1px solid ${isSale ? 'rgba(13,148,136,0.2)' : 'rgba(225,29,72,0.2)'};
         `;
-        icon.textContent = isSale ? '💰' : '📦';
+        icon.textContent = isSale ? 'CR' : 'DR';
 
         // Info
         const info = document.createElement('div');

@@ -29,7 +29,8 @@ const AyamApp = (() => {
     // ─────────────────────────────────────────────
     async init() {
       // Set default dates on forms to today (YYYY-MM-DD format)
-      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const salesDate = $('sales-date');
       const expenseDate = $('expense-date');
       if (salesDate) salesDate.value = today;
@@ -127,7 +128,7 @@ const AyamApp = (() => {
     switchView(viewName) {
       currentView = viewName;
 
-      ['dashboard', 'sales', 'expenses'].forEach(v => {
+      ['dashboard', 'sales', 'expenses', 'inventory'].forEach(v => {
         const el = $('view-' + v);
         const nav = $('nav-' + v);
 
@@ -150,9 +151,11 @@ const AyamApp = (() => {
         }
       });
 
-      // Refresh dashboard data when switching to it
+      // Refresh data when switching views
       if (viewName === 'dashboard' && isInitialized) {
         AyamDashboard.load();
+      } else if (viewName === 'inventory' && isInitialized) {
+        AyamInventory.load();
       }
     },
 
@@ -198,7 +201,7 @@ const AyamApp = (() => {
           notes: notes
         });
 
-        this.showToast('Sales recorded! 🍗', 'success');
+        this.showToast('Sales recorded successfully.', 'success');
 
         // Reset form (keep the date)
         const salesCash = $('sales-cash');
@@ -217,7 +220,7 @@ const AyamApp = (() => {
         this.showToast('Failed to save. Please try again.', 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = originalText || '💾 Save Sales';
+        btn.textContent = originalText || 'Save Sales';
       }
     },
 
@@ -271,7 +274,7 @@ const AyamApp = (() => {
           notes: notes
         });
 
-        this.showToast('Expense logged! 📝', 'success');
+        this.showToast('Expense logged successfully.', 'success');
 
         // Reset form (keep date and category defaults)
         const expenseAmt = $('expense-amount');
@@ -294,7 +297,7 @@ const AyamApp = (() => {
         this.showToast('Failed to save. Please try again.', 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = originalText || '💾 Save Expense';
+        btn.textContent = originalText || 'Save Expense';
       }
     },
 
@@ -339,7 +342,7 @@ const AyamApp = (() => {
         await AyamSheets.setTargetProfit(target);
         AyamDashboard.setTarget(target);
         this.closeSettings();
-        this.showToast('Target updated! 🎯', 'success');
+        this.showToast('Target updated successfully.', 'success');
         if (currentView === 'dashboard') {
           AyamDashboard.load();
         }
